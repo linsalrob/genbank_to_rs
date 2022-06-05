@@ -1,0 +1,10 @@
+[package]
+name = "genbank_tors"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "3.0", features = ["derive"] }
+gb-io = "0.7.1"

@@ -68,11 +68,8 @@ fn write_amr_gff(records: &[&Record], path: &Path, args: &Args) -> Result<()> {
             if let Some(ref product) = feature.qualifiers.product {
                 attributes.push(format!("product={}", url_encode_gff(product)));
             }
-            if feature.qualifiers.codon_start.is_some() {
-                attributes.push(format!(
-                    "codon_start={}",
-                    feature.qualifiers.codon_start.unwrap()
-                ));
+            if let Some(codon_start) = feature.qualifiers.codon_start {
+                attributes.push(format!("codon_start={}", codon_start));
             }
 
             writeln!(

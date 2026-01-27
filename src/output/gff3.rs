@@ -71,11 +71,8 @@ fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args)
         if let Some(ref product) = feature.qualifiers.product {
             attributes.push(format!("product={}", url_encode_gff(product)));
         }
-        if feature.qualifiers.codon_start.is_some() {
-            attributes.push(format!(
-                "codon_start={}",
-                feature.qualifiers.codon_start.unwrap()
-            ));
+        if let Some(codon_start) = feature.qualifiers.codon_start {
+            attributes.push(format!("codon_start={}", codon_start));
         }
         if feature.qualifiers.pseudo {
             attributes.push("pseudo=true".to_string());

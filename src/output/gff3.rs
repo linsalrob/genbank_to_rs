@@ -96,13 +96,7 @@ fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args)
         writeln!(
             writer,
             "{}\tfeature\t{}\t{}\t{}\t.\t{}\t{}\t{}",
-            record.id,
-            feature.feature_type,
-            start,
-            end,
-            strand,
-            frame,
-            attr_string
+            record.id, feature.feature_type, start, end, strand, frame, attr_string
         )?;
     }
 

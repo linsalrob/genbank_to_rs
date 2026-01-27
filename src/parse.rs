@@ -8,7 +8,6 @@ use anyhow::{Context, Result};
 use gb_io::reader::SeqReader;
 use gb_io::seq::{Feature as GbFeature, Seq};
 use std::fs::File;
-use std::ops::Range;
 use std::path::Path;
 
 /// Parse GenBank file into records

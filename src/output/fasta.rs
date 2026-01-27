@@ -201,12 +201,7 @@ fn build_fasta_header(feature: &Feature, record: &Record, complex: bool) -> Stri
 
     format!(
         "{} [{}] [{}] [{}] {}{}",
-        feature_id,
-        record.id,
-        organism,
-        location_id,
-        product,
-        db_xrefs
+        feature_id, record.id, organism, location_id, product, db_xrefs
     )
 }
 

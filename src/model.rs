@@ -12,6 +12,7 @@ pub struct Record {
     pub sequence: String,
     pub length: usize,
     pub topology: Option<String>,
+    #[allow(dead_code)]
     pub molecule_type: Option<String>,
     pub organism: Option<String>,
     pub features: Vec<Feature>,
@@ -30,6 +31,7 @@ pub struct Feature {
 pub struct Location {
     pub strand: Strand,
     pub ranges: Vec<Range<usize>>,
+    #[allow(dead_code)]
     pub is_join: bool,
 }
 

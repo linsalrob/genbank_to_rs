@@ -1,1 +1,18 @@
-/target
+/# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Log files
+*.log
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

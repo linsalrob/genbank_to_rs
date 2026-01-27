@@ -4,10 +4,10 @@
 //! Produces JSON compatible with Bakta annotation tool
 
 use crate::cli::Args;
-use crate::model::{Record, Feature};
+use crate::model::{Feature, Record};
 use crate::util::MaybeGzWriter;
 use anyhow::Result;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json;
 use std::io::Write;
 use std::path::Path;
@@ -18,11 +18,11 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn write_bakta_json(records: &[&Record], path: &Path, args: &Args) -> Result<()> {
     let json_data = build_bakta_json(records, args)?;
     let json_str = serde_json::to_string_pretty(&json_data)?;
-    
+
     let mut writer = MaybeGzWriter::new(path, args.zip)?;
     writer.write_all(json_str.as_bytes())?;
     writer.flush()?;
-    
+
     tracing::info!("Wrote Bakta JSON to {:?}", path);
     Ok(())
 }
@@ -32,7 +32,7 @@ fn build_bakta_json(records: &[&Record], args: &Args) -> Result<BaktaJson> {
     let stats = build_genome_stats(records);
     let features = build_features(records, args);
     let sequences = build_sequences(records);
-    
+
     Ok(BaktaJson {
         genome,
         stats,
@@ -132,7 +132,7 @@ fn build_genome_metadata(records: &[&Record], args: &Args) -> Result<GenomeMetad
     let mut genus = None;
     let mut species = None;
     let mut strain = None;
-    
+
     // Parse organism from first record
     if let Some(record) = records.first() {
         if let Some(ref organism) = record.organism {
@@ -148,19 +148,17 @@ fn build_genome_metadata(records: &[&Record], args: &Args) -> Result<GenomeMetad
             }
         }
     }
-    
+
     // Determine completeness
     let complete = records.iter().any(|r| {
-        r.topology.as_deref() == Some("Topology::Circular") || 
-        r.description.to_lowercase().contains("complete")
+        r.topology.as_deref() == Some("Topology::Circular")
+            || r.description.to_lowercase().contains("complete")
     });
-    
+
     // Gram stain
-    let gram = args.gram.clone().or_else(|| {
-        // Could implement genus-based inference here
-        None
-    });
-    
+    let gram = args.gram.clone();
+    // Could implement genus-based inference here if gram is None
+
     Ok(GenomeMetadata {
         genus,
         species,
@@ -174,7 +172,7 @@ fn build_genome_metadata(records: &[&Record], args: &Args) -> Result<GenomeMetad
 fn build_genome_stats(records: &[&Record]) -> GenomeStats {
     let no_sequences = records.len();
     let size: usize = records.iter().map(|r| r.length).sum();
-    
+
     // Calculate GC content
     let (gc_count, at_count) = records.iter().fold((0, 0), |(gc, at), r| {
         let seq = r.sequence.to_uppercase();
@@ -184,15 +182,16 @@ fn build_genome_stats(records: &[&Record]) -> GenomeStats {
         let t = seq.matches('T').count();
         (gc + g + c, at + a + t)
     });
-    
+
     let gc = if gc_count + at_count > 0 {
         gc_count as f64 / (gc_count + at_count) as f64
     } else {
         0.0
     };
-    
+
     // Calculate N ratio
-    let n_count: usize = records.iter()
+    let n_count: usize = records
+        .iter()
         .map(|r| r.sequence.to_uppercase().matches('N').count())
         .sum();
     let n_ratio = if size > 0 {
@@ -200,7 +199,7 @@ fn build_genome_stats(records: &[&Record]) -> GenomeStats {
     } else {
         0.0
     };
-    
+
     // N50 calculation (simplified)
     let n50 = if no_sequences > 0 {
         let mut lengths: Vec<usize> = records.iter().map(|r| r.length).collect();
@@ -224,7 +223,7 @@ fn build_genome_stats(records: &[&Record]) -> GenomeStats {
     } else {
         0
     };
-    
+
     GenomeStats {
         no_sequences,
         size,
@@ -240,7 +239,7 @@ fn calculate_coding_ratio(records: &[&Record]) -> f64 {
     if total_bases == 0 {
         return 0.0;
     }
-    
+
     let mut coding_bases = 0;
     for record in records {
         let mut coverage = vec![false; record.length];
@@ -257,37 +256,37 @@ fn calculate_coding_ratio(records: &[&Record]) -> f64 {
         }
         coding_bases += coverage.iter().filter(|&&covered| covered).count();
     }
-    
+
     coding_bases as f64 / total_bases as f64
 }
 
 fn build_features(records: &[&Record], args: &Args) -> Vec<FeatureInfo> {
     let mut features = Vec::new();
-    
+
     for record in records {
         for feature in &record.features {
             if feature.feature_type == "CDS" {
                 if !args.pseudo && feature.is_pseudo() {
                     continue;
                 }
-                
+
                 let nt_seq = feature.location.extract_sequence(&record.sequence);
                 let aa_seq = get_aa_sequence(feature, &record.sequence);
-                
-                let aa_hexdigest = aa_seq.as_ref().map(|aa| {
-                    format!("{:x}", md5::compute(aa.as_bytes()))
-                });
-                
+
+                let aa_hexdigest = aa_seq
+                    .as_ref()
+                    .map(|aa| format!("{:x}", md5::compute(aa.as_bytes())));
+
                 let start_type = if nt_seq.len() >= 3 {
                     Some(nt_seq[0..3].to_uppercase())
                 } else {
                     None
                 };
-                
+
                 let truncated = detect_truncation(&nt_seq, &aa_seq, feature);
-                
+
                 let hypothetical = feature.product().to_lowercase().contains("hypothetical");
-                
+
                 features.push(FeatureInfo {
                     feature_type: "CDS".to_string(),
                     contig: record.id.clone(),
@@ -310,7 +309,7 @@ fn build_features(records: &[&Record], args: &Args) -> Vec<FeatureInfo> {
             }
         }
     }
-    
+
     features
 }
 
@@ -318,19 +317,19 @@ fn get_aa_sequence(feature: &Feature, record_seq: &str) -> Option<String> {
     if let Some(ref translation) = feature.qualifiers.translation {
         return Some(translation.clone());
     }
-    
+
     let nt_seq = feature.location.extract_sequence(record_seq);
     let table = feature.qualifiers.transl_table.unwrap_or(11);
     let frame = feature.qualifiers.codon_start.unwrap_or(1);
-    
+
     crate::output::fasta::translate_sequence(&nt_seq, table, frame).ok()
 }
 
 fn detect_truncation(nt_seq: &str, aa_seq: &Option<String>, _feature: &Feature) -> Option<String> {
     if let Some(aa) = aa_seq {
         let starts_with_m = aa.starts_with('M');
-        let ends_with_stop = aa.ends_with('*') || nt_seq.len() % 3 == 0;
-        
+        let ends_with_stop = aa.ends_with('*') || nt_seq.len().is_multiple_of(3);
+
         match (starts_with_m, ends_with_stop) {
             (false, false) => Some("5-prime-3-prime".to_string()),
             (false, true) => Some("5-prime".to_string()),
@@ -343,36 +342,47 @@ fn detect_truncation(nt_seq: &str, aa_seq: &Option<String>, _feature: &Feature) 
 }
 
 fn build_sequences(records: &[&Record]) -> Vec<SequenceInfo> {
-    records.iter().map(|record| {
-        let simple_id = record.id.split('.').next().unwrap_or(&record.id).to_string();
-        
-        let seq_type = if record.description.to_lowercase().contains("plasmid") {
-            "plasmid"
-        } else if record.description.to_lowercase().contains("chromosome") {
-            "chromosome"
-        } else if record.description.to_lowercase().contains("contig") {
-            "contig"
-        } else {
-            "sequence"
-        }.to_string();
-        
-        let topology = if record.topology.as_deref() == Some("Topology::Circular") {
-            "circular"
-        } else {
-            "linear"
-        }.to_string();
-        
-        let complete = topology == "circular" || record.description.to_lowercase().contains("complete");
-        
-        SequenceInfo {
-            id: record.id.clone(),
-            description: record.description.clone(),
-            sequence: record.sequence.clone(),
-            length: record.length,
-            complete,
-            seq_type,
-            topology,
-            simple_id,
-        }
-    }).collect()
+    records
+        .iter()
+        .map(|record| {
+            let simple_id = record
+                .id
+                .split('.')
+                .next()
+                .unwrap_or(&record.id)
+                .to_string();
+
+            let seq_type = if record.description.to_lowercase().contains("plasmid") {
+                "plasmid"
+            } else if record.description.to_lowercase().contains("chromosome") {
+                "chromosome"
+            } else if record.description.to_lowercase().contains("contig") {
+                "contig"
+            } else {
+                "sequence"
+            }
+            .to_string();
+
+            let topology = if record.topology.as_deref() == Some("Topology::Circular") {
+                "circular"
+            } else {
+                "linear"
+            }
+            .to_string();
+
+            let complete =
+                topology == "circular" || record.description.to_lowercase().contains("complete");
+
+            SequenceInfo {
+                id: record.id.clone(),
+                description: record.description.clone(),
+                sequence: record.sequence.clone(),
+                length: record.length,
+                complete,
+                seq_type,
+                topology,
+                simple_id,
+            }
+        })
+        .collect()
 }

@@ -2,14 +2,14 @@
 //!
 //! Coordinates writing records in various formats
 
-pub mod fasta;
-pub mod ptt;
-pub mod functions;
-pub mod gff3;
 pub mod amr;
-pub mod phage_finder;
 pub mod bakta_json;
+pub mod fasta;
+pub mod functions;
 pub mod genbank;
+pub mod gff3;
+pub mod phage_finder;
+pub mod ptt;
 
 use crate::cli::Args;
 use crate::model::Record;

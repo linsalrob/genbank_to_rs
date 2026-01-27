@@ -18,7 +18,7 @@ impl MaybeGzWriter {
     /// Create a new writer, optionally with gzip compression
     pub fn new(path: &Path, compress: bool) -> anyhow::Result<Self> {
         let file = File::create(path)?;
-        
+
         if compress {
             let encoder = GzEncoder::new(file, Compression::default());
             Ok(MaybeGzWriter::Gzip(BufWriter::new(encoder)))
@@ -70,6 +70,7 @@ pub fn url_encode_gff(s: &str) -> String {
 }
 
 /// Check if a file is gzip compressed by reading magic bytes
+#[allow(dead_code)]
 pub fn is_gzip(path: &Path) -> anyhow::Result<bool> {
     use std::io::Read;
     let mut file = File::open(path)?;

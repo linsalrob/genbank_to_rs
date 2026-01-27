@@ -35,6 +35,7 @@ pub struct Location {
 
 /// Strand orientation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Strand {
     Forward,
     Reverse,
@@ -42,7 +43,7 @@ pub enum Strand {
 }
 
 impl Strand {
-    pub fn to_int(&self) -> i8 {
+    pub fn to_int(self) -> i8 {
         match self {
             Strand::Forward => 1,
             Strand::Reverse => -1,
@@ -50,7 +51,7 @@ impl Strand {
         }
     }
 
-    pub fn to_char(&self) -> char {
+    pub fn to_char(self) -> char {
         match self {
             Strand::Forward => '+',
             Strand::Reverse => '-',
@@ -137,7 +138,12 @@ impl Feature {
         if let Some(xref) = self.qualifiers.db_xref.first() {
             return xref.clone();
         }
-        format!("{}_{}_{}", record_id, self.location.start(), self.location.end())
+        format!(
+            "{}_{}_{}",
+            record_id,
+            self.location.start(),
+            self.location.end()
+        )
     }
 
     /// Check if this is a pseudogene

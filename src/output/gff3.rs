@@ -12,21 +12,21 @@ use std::path::Path;
 /// Write GFF3 format
 pub fn write_gff3(records: &[&Record], path: &Path, args: &Args) -> Result<()> {
     let mut writer = MaybeGzWriter::new(path, args.zip)?;
-    
+
     // Write GFF3 header
     writeln!(writer, "##gff-version 3")?;
-    
+
     for record in records {
         write_gff3_for_record(&mut writer, record, args)?;
     }
-    
+
     // Write FASTA section
     writeln!(writer, "##FASTA")?;
     for record in records {
         writeln!(writer, ">{}", record.id)?;
         writeln!(writer, "{}", record.sequence)?;
     }
-    
+
     writer.flush()?;
     tracing::info!("Wrote GFF3 format to {:?}", path);
     Ok(())
@@ -34,8 +34,12 @@ pub fn write_gff3(records: &[&Record], path: &Path, args: &Args) -> Result<()> {
 
 fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args) -> Result<()> {
     // Write sequence-region directive
-    writeln!(writer, "##sequence-region {} 1 {}", record.id, record.length)?;
-    
+    writeln!(
+        writer,
+        "##sequence-region {} 1 {}",
+        record.id, record.length
+    )?;
+
     for feature in &record.features {
         if !args.pseudo && feature.is_pseudo() {
             continue;
@@ -44,7 +48,7 @@ fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args)
         let start = feature.location.start();
         let end = feature.location.end();
         let strand = feature.location.strand.to_char();
-        
+
         // Frame calculation for CDS
         let frame = if feature.feature_type == "CDS" {
             feature.qualifiers.codon_start.map(|c| c - 1).unwrap_or(0)
@@ -54,7 +58,7 @@ fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args)
 
         // Build attributes
         let mut attributes = Vec::new();
-        
+
         if let Some(ref protein_id) = feature.qualifiers.protein_id {
             attributes.push(format!("protein_id={}", url_encode_gff(protein_id)));
         }
@@ -68,13 +72,18 @@ fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args)
             attributes.push(format!("product={}", url_encode_gff(product)));
         }
         if feature.qualifiers.codon_start.is_some() {
-            attributes.push(format!("codon_start={}", feature.qualifiers.codon_start.unwrap()));
+            attributes.push(format!(
+                "codon_start={}",
+                feature.qualifiers.codon_start.unwrap()
+            ));
         }
         if feature.qualifiers.pseudo {
             attributes.push("pseudo=true".to_string());
         }
         if !feature.qualifiers.db_xref.is_empty() {
-            let xrefs = feature.qualifiers.db_xref
+            let xrefs = feature
+                .qualifiers
+                .db_xref
                 .iter()
                 .map(|x| url_encode_gff(x))
                 .collect::<Vec<_>>()
@@ -86,9 +95,8 @@ fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args)
 
         writeln!(
             writer,
-            "{}\t{}\t{}\t{}\t{}\t.\t{}\t{}\t{}",
+            "{}\tfeature\t{}\t{}\t{}\t.\t{}\t{}\t{}",
             record.id,
-            "feature", // source
             feature.feature_type,
             start,
             end,
@@ -97,6 +105,6 @@ fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args)
             attr_string
         )?;
     }
-    
+
     Ok(())
 }

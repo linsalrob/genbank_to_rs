@@ -1,10 +1,29 @@
 [package]
-name = "genbank_tors"
+name = "genbank_to_rs"
 version = "0.1.0"
 edition = "2021"
+authors = ["Edwards Lab"]
+description = "Convert NCBI GenBank format files to various output formats"
+license = "MIT"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "genbank_to"
+path = "src/main.rs"
 
 [dependencies]
-clap = { version = "3.0", features = ["derive"] }
-gb-io = "0.7.1"
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+flate2 = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+md5 = "0.7"
+regex = "1.10"
+itertools = "0.12"
+gb-io = "0.7"
+
+[dev-dependencies]
+insta = "1.34"
+tempfile = "3.8"

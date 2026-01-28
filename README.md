@@ -2,6 +2,24 @@
 
 A Rust implementation of the [genbank_to](https://github.com/linsalrob/genbank_to) tool for converting NCBI GenBank format files to various output formats.
 
+## Documentation
+
+📖 **[Full Documentation on ReadTheDocs](https://genbank-to-rs.readthedocs.io/)** (once configured)
+
+For comprehensive documentation including:
+- Installation guide
+- Usage examples
+- Output format specifications
+- API reference
+- Contributing guidelines
+
+You can also build the documentation locally:
+```bash
+cd docs
+pip install -r requirements.txt
+make html
+```
+
 ## Features
 
 Convert GenBank files to:

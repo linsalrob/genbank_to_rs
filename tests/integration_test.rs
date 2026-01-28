@@ -21,6 +21,15 @@ fn get_test_data_path() -> PathBuf {
     path
 }
 
+fn get_gzip_test_data_path() -> PathBuf {
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.push("tests");
+    path.push("data");
+    path.push("input");
+    path.push("NC_001417.gbk.gz");
+    path
+}
+
 #[test]
 fn test_help_output() {
     let output = Command::new(get_binary_path())
@@ -162,17 +171,10 @@ fn test_gzip_compression() {
 fn test_read_gzip_genbank_file() {
     let temp_dir = tempfile::tempdir().unwrap();
     let output_path = temp_dir.path().join("test.fna");
-    
-    // Path to gzipped GenBank file
-    let mut gzip_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    gzip_path.push("tests");
-    gzip_path.push("data");
-    gzip_path.push("input");
-    gzip_path.push("NC_001417.gbk.gz");
 
     let output = Command::new(get_binary_path())
         .arg("-g")
-        .arg(&gzip_path)
+        .arg(get_gzip_test_data_path())
         .arg("-n")
         .arg(&output_path)
         .output()
@@ -190,17 +192,10 @@ fn test_read_gzip_genbank_file() {
 fn test_read_gzip_genbank_file_aminoacids() {
     let temp_dir = tempfile::tempdir().unwrap();
     let output_path = temp_dir.path().join("test.faa");
-    
-    // Path to gzipped GenBank file
-    let mut gzip_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    gzip_path.push("tests");
-    gzip_path.push("data");
-    gzip_path.push("input");
-    gzip_path.push("NC_001417.gbk.gz");
 
     let output = Command::new(get_binary_path())
         .arg("-g")
-        .arg(&gzip_path)
+        .arg(get_gzip_test_data_path())
         .arg("-a")
         .arg(&output_path)
         .output()

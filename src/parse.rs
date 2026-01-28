@@ -9,7 +9,7 @@ use flate2::read::GzDecoder;
 use gb_io::reader::SeqReader;
 use gb_io::seq::{Feature as GbFeature, Seq};
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 
 /// Parse GenBank file into records
@@ -20,12 +20,22 @@ pub fn parse_genbank_file(path: &Path) -> Result<Vec<Record>> {
 
     // Check for gzip magic number (0x1f, 0x8b)
     let mut magic = [0u8; 2];
-    file.read_exact(&mut magic)
-        .with_context(|| format!("Failed to read file header: {:?}", path))?;
+    match file.read_exact(&mut magic) {
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+            anyhow::bail!(
+                "File {:?} is too small to be a valid GenBank file (less than 2 bytes)",
+                path
+            );
+        }
+        Err(e) => {
+            return Err(e).with_context(|| format!("Failed to read file header: {:?}", path));
+        }
+    }
 
-    // Reopen file since we consumed bytes
-    let file =
-        File::open(path).with_context(|| format!("Failed to reopen GenBank file: {:?}", path))?;
+    // Rewind to the beginning
+    file.seek(SeekFrom::Start(0))
+        .with_context(|| format!("Failed to rewind file: {:?}", path))?;
 
     let mut records = Vec::new();
 
@@ -33,27 +43,28 @@ pub fn parse_genbank_file(path: &Path) -> Result<Vec<Record>> {
         // File is gzip compressed
         tracing::info!("Detected gzip compressed file: {:?}", path);
         let decoder = GzDecoder::new(BufReader::new(file));
-        let reader = SeqReader::new(decoder);
-
-        for seq_result in reader {
-            let seq = seq_result.context("Failed to parse GenBank record")?;
-            let record = convert_seq_to_record(seq)?;
-            records.push(record);
-        }
+        parse_records_from_reader(SeqReader::new(decoder), &mut records)?;
     } else {
         // Regular uncompressed file
         tracing::info!("Reading uncompressed file: {:?}", path);
-        let reader = SeqReader::new(BufReader::new(file));
-
-        for seq_result in reader {
-            let seq = seq_result.context("Failed to parse GenBank record")?;
-            let record = convert_seq_to_record(seq)?;
-            records.push(record);
-        }
+        parse_records_from_reader(SeqReader::new(BufReader::new(file)), &mut records)?;
     }
 
     tracing::info!("Parsed {} record(s) from {:?}", records.len(), path);
     Ok(records)
+}
+
+/// Helper function to parse records from any reader
+fn parse_records_from_reader<R: Read>(
+    reader: SeqReader<R>,
+    records: &mut Vec<Record>,
+) -> Result<()> {
+    for seq_result in reader {
+        let seq = seq_result.context("Failed to parse GenBank record")?;
+        let record = convert_seq_to_record(seq)?;
+        records.push(record);
+    }
+    Ok(())
 }
 
 /// Convert gb-io Seq to our Record model

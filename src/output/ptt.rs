@@ -42,8 +42,8 @@ fn write_ptt_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args) 
 
         let strand = feature.location.strand.to_char();
 
-        // Length calculation: (end - start) / 3 - 1 (protein length)
-        let length = ((end - start) as f64 / 3.0 - 1.0).max(0.0);
+        // Length calculation: (end - start + 1) / 3 (protein length in amino acids)
+        let length = (end - start + 1) / 3;
 
         // Extract GI from db_xref
         let gi = extract_gi(&feature.qualifiers.db_xref);

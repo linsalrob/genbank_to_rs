@@ -328,7 +328,7 @@ fn get_aa_sequence(feature: &Feature, record_seq: &str) -> Option<String> {
 fn detect_truncation(nt_seq: &str, aa_seq: &Option<String>, _feature: &Feature) -> Option<String> {
     if let Some(aa) = aa_seq {
         let starts_with_m = aa.starts_with('M');
-        let ends_with_stop = aa.ends_with('*') || nt_seq.len().is_multiple_of(3);
+        let ends_with_stop = aa.ends_with('*') || nt_seq.len() % 3 == 0;
 
         match (starts_with_m, ends_with_stop) {
             (false, false) => Some("5-prime-3-prime".to_string()),

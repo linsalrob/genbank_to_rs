@@ -51,7 +51,12 @@ fn write_gff3_for_record<W: Write>(writer: &mut W, record: &Record, args: &Args)
 
         // Frame calculation for CDS
         let frame = if feature.feature_type == "CDS" {
-            feature.qualifiers.codon_start.map(|c| c - 1).unwrap_or(0).to_string()
+            feature
+                .qualifiers
+                .codon_start
+                .map(|c| c - 1)
+                .unwrap_or(0)
+                .to_string()
         } else {
             ".".to_string()
         };

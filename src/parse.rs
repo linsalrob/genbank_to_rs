@@ -5,23 +5,51 @@
 
 use crate::model::*;
 use anyhow::{Context, Result};
+use flate2::read::GzDecoder;
 use gb_io::reader::SeqReader;
 use gb_io::seq::{Feature as GbFeature, Seq};
 use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::Path;
 
 /// Parse GenBank file into records
+/// Automatically detects and decompresses gzip files based on magic number
 pub fn parse_genbank_file(path: &Path) -> Result<Vec<Record>> {
-    let file =
+    let mut file =
         File::open(path).with_context(|| format!("Failed to open GenBank file: {:?}", path))?;
 
-    let reader = SeqReader::new(file);
+    // Check for gzip magic number (0x1f, 0x8b)
+    let mut magic = [0u8; 2];
+    file.read_exact(&mut magic)
+        .with_context(|| format!("Failed to read file header: {:?}", path))?;
+
+    // Reopen file since we consumed bytes
+    let file =
+        File::open(path).with_context(|| format!("Failed to reopen GenBank file: {:?}", path))?;
+
     let mut records = Vec::new();
 
-    for seq_result in reader {
-        let seq = seq_result.context("Failed to parse GenBank record")?;
-        let record = convert_seq_to_record(seq)?;
-        records.push(record);
+    if magic == [0x1f, 0x8b] {
+        // File is gzip compressed
+        tracing::info!("Detected gzip compressed file: {:?}", path);
+        let decoder = GzDecoder::new(BufReader::new(file));
+        let reader = SeqReader::new(decoder);
+
+        for seq_result in reader {
+            let seq = seq_result.context("Failed to parse GenBank record")?;
+            let record = convert_seq_to_record(seq)?;
+            records.push(record);
+        }
+    } else {
+        // Regular uncompressed file
+        tracing::info!("Reading uncompressed file: {:?}", path);
+        let reader = SeqReader::new(BufReader::new(file));
+
+        for seq_result in reader {
+            let seq = seq_result.context("Failed to parse GenBank record")?;
+            let record = convert_seq_to_record(seq)?;
+            records.push(record);
+        }
     }
 
     tracing::info!("Parsed {} record(s) from {:?}", records.len(), path);
@@ -224,5 +252,47 @@ mod tests {
         let parsed = parse_qualifiers(&quals);
         assert_eq!(parsed.protein_id, Some("YP_001234".to_string()));
         assert_eq!(parsed.locus_tag, Some("ABC_001".to_string()));
+    }
+
+    #[test]
+    fn test_parse_uncompressed_genbank() {
+        let path = Path::new("tests/data/input/NC_001417.gbk");
+        if path.exists() {
+            let records = parse_genbank_file(path).unwrap();
+            assert!(!records.is_empty());
+            assert_eq!(records[0].id, "NC_001417");
+        }
+    }
+
+    #[test]
+    fn test_parse_gzip_genbank() {
+        let path = Path::new("tests/data/input/NC_001417.gbk.gz");
+        if path.exists() {
+            let records = parse_genbank_file(path).unwrap();
+            assert!(!records.is_empty());
+            assert_eq!(records[0].id, "NC_001417");
+        }
+    }
+
+    #[test]
+    fn test_gzip_and_uncompressed_produce_same_result() {
+        let uncompressed_path = Path::new("tests/data/input/NC_001417.gbk");
+        let gzip_path = Path::new("tests/data/input/NC_001417.gbk.gz");
+
+        if uncompressed_path.exists() && gzip_path.exists() {
+            let uncompressed_records = parse_genbank_file(uncompressed_path).unwrap();
+            let gzip_records = parse_genbank_file(gzip_path).unwrap();
+
+            assert_eq!(uncompressed_records.len(), gzip_records.len());
+            assert_eq!(uncompressed_records[0].id, gzip_records[0].id);
+            assert_eq!(
+                uncompressed_records[0].sequence,
+                gzip_records[0].sequence
+            );
+            assert_eq!(
+                uncompressed_records[0].features.len(),
+                gzip_records[0].features.len()
+            );
+        }
     }
 }

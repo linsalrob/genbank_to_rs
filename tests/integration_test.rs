@@ -157,3 +157,81 @@ fn test_gzip_compression() {
         "File should be gzip compressed"
     );
 }
+
+#[test]
+fn test_read_gzip_genbank_file() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let output_path = temp_dir.path().join("test.fna");
+    
+    // Path to gzipped GenBank file
+    let mut gzip_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    gzip_path.push("tests");
+    gzip_path.push("data");
+    gzip_path.push("input");
+    gzip_path.push("NC_001417.gbk.gz");
+
+    let output = Command::new(get_binary_path())
+        .arg("-g")
+        .arg(&gzip_path)
+        .arg("-n")
+        .arg(&output_path)
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success(), "Command failed: {:?}", output);
+    assert!(output_path.exists(), "Output file was not created");
+
+    let content = fs::read_to_string(&output_path).unwrap();
+    assert!(content.starts_with(">NC_001417"));
+    assert!(content.contains("gggtgggacccctttcggggtc")); // Start of sequence
+}
+
+#[test]
+fn test_read_gzip_genbank_file_aminoacids() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let output_path = temp_dir.path().join("test.faa");
+    
+    // Path to gzipped GenBank file
+    let mut gzip_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    gzip_path.push("tests");
+    gzip_path.push("data");
+    gzip_path.push("input");
+    gzip_path.push("NC_001417.gbk.gz");
+
+    let output = Command::new(get_binary_path())
+        .arg("-g")
+        .arg(&gzip_path)
+        .arg("-a")
+        .arg(&output_path)
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success());
+    assert!(output_path.exists());
+
+    let content = fs::read_to_string(&output_path).unwrap();
+    assert!(content.starts_with(">YP_009640124.1"));
+    assert!(content.contains("MRAFSTLDRENET")); // Start of protein sequence
+}
+
+#[test]
+fn test_gzip_detection_with_uncompressed_file() {
+    // This tests that regular uncompressed files still work
+    let temp_dir = tempfile::tempdir().unwrap();
+    let output_path = temp_dir.path().join("test.fna");
+
+    let output = Command::new(get_binary_path())
+        .arg("-g")
+        .arg(get_test_data_path())
+        .arg("-n")
+        .arg(&output_path)
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success(), "Command failed: {:?}", output);
+    assert!(output_path.exists(), "Output file was not created");
+
+    let content = fs::read_to_string(&output_path).unwrap();
+    assert!(content.starts_with(">NC_001417"));
+    assert!(content.contains("gggtgggacccctttcggggtc"));
+}

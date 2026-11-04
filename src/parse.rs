@@ -5,11 +5,11 @@
 
 use crate::model::*;
 use anyhow::{Context, Result};
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 use gb_io::reader::SeqReader;
 use gb_io::seq::{Feature as GbFeature, Seq};
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom};
+use std::io::{BufReader, Cursor, Read};
 use std::path::Path;
 
 /// Parse GenBank file into records
@@ -18,36 +18,35 @@ pub fn parse_genbank_file(path: &Path) -> Result<Vec<Record>> {
     let mut file =
         File::open(path).with_context(|| format!("Failed to open GenBank file: {:?}", path))?;
 
-    // Check for gzip magic number (0x1f, 0x8b)
-    let mut magic = [0u8; 2];
-    match file.read_exact(&mut magic) {
-        Ok(_) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-            anyhow::bail!(
-                "File {:?} is too small to be a valid GenBank file (less than 2 bytes)",
-                path
-            );
-        }
-        Err(e) => {
-            return Err(e).with_context(|| format!("Failed to read file header: {:?}", path));
-        }
+    // Check for gzip magic number (0x1f, 0x8b). The header bytes are replayed
+    // in front of the rest of the stream rather than seeking back, so that
+    // non-seekable inputs (named pipes, process substitution) still work.
+    let mut magic = Vec::with_capacity(2);
+    (&mut file)
+        .take(2)
+        .read_to_end(&mut magic)
+        .with_context(|| format!("Failed to read file header: {:?}", path))?;
+    if magic.len() < 2 {
+        anyhow::bail!(
+            "File {:?} is too small to be a valid GenBank file (less than 2 bytes)",
+            path
+        );
     }
-
-    // Rewind to the beginning
-    file.seek(SeekFrom::Start(0))
-        .with_context(|| format!("Failed to rewind file: {:?}", path))?;
+    let is_gzip = magic == [0x1f, 0x8b];
+    let input = BufReader::new(Cursor::new(magic).chain(file));
 
     let mut records = Vec::new();
 
-    if magic == [0x1f, 0x8b] {
-        // File is gzip compressed
+    if is_gzip {
+        // File is gzip compressed. MultiGzDecoder reads every member, so
+        // concatenated gzip files (e.g. `cat a.gbk.gz b.gbk.gz`) are fully parsed.
         tracing::info!("Detected gzip compressed file: {:?}", path);
-        let decoder = GzDecoder::new(BufReader::new(file));
+        let decoder = MultiGzDecoder::new(input);
         parse_records_from_reader(SeqReader::new(decoder), &mut records)?;
     } else {
         // Regular uncompressed file
         tracing::info!("Reading uncompressed file: {:?}", path);
-        parse_records_from_reader(SeqReader::new(BufReader::new(file)), &mut records)?;
+        parse_records_from_reader(SeqReader::new(input), &mut records)?;
     }
 
     tracing::info!("Parsed {} record(s) from {:?}", records.len(), path);

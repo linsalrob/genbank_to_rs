@@ -230,3 +230,57 @@ fn test_gzip_detection_with_uncompressed_file() {
     assert!(content.starts_with(">NC_001417"));
     assert!(content.contains("gggtgggacccctttcggggtc"));
 }
+
+#[test]
+fn test_read_concatenated_gzip_members() {
+    // `cat a.gbk.gz b.gbk.gz` is a valid gzip file with two members; both
+    // records must be parsed, not just the first member.
+    let temp_dir = tempfile::tempdir().unwrap();
+    let gz = fs::read(get_gzip_test_data_path()).unwrap();
+    let input_path = temp_dir.path().join("concat.gbk.gz");
+    fs::write(&input_path, [gz.as_slice(), gz.as_slice()].concat()).unwrap();
+    let output_path = temp_dir.path().join("test.fna");
+
+    let output = Command::new(get_binary_path())
+        .arg("-g")
+        .arg(&input_path)
+        .arg("-n")
+        .arg(&output_path)
+        .output()
+        .expect("Failed to execute command");
+
+    assert!(output.status.success(), "Command failed: {:?}", output);
+    let content = fs::read_to_string(&output_path).unwrap();
+    assert_eq!(content.matches(">NC_001417").count(), 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn test_read_non_seekable_input() {
+    // A pipe on /dev/stdin cannot seek; both plain and gzip input must work.
+    for input in [get_test_data_path(), get_gzip_test_data_path()] {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let output_path = temp_dir.path().join("test.fna");
+
+        let mut child = Command::new(get_binary_path())
+            .arg("-g")
+            .arg("/dev/stdin")
+            .arg("-n")
+            .arg(&output_path)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("Failed to execute command");
+        {
+            use std::io::Write;
+            let mut stdin = child.stdin.take().unwrap();
+            stdin.write_all(&fs::read(&input).unwrap()).unwrap();
+        }
+        let output = child.wait_with_output().unwrap();
+
+        assert!(output.status.success(), "Command failed for {:?}: {:?}", input, output);
+        let content = fs::read_to_string(&output_path).unwrap();
+        assert!(content.starts_with(">NC_001417"));
+    }
+}

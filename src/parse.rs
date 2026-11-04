@@ -295,10 +295,7 @@ mod tests {
 
             assert_eq!(uncompressed_records.len(), gzip_records.len());
             assert_eq!(uncompressed_records[0].id, gzip_records[0].id);
-            assert_eq!(
-                uncompressed_records[0].sequence,
-                gzip_records[0].sequence
-            );
+            assert_eq!(uncompressed_records[0].sequence, gzip_records[0].sequence);
             assert_eq!(
                 uncompressed_records[0].features.len(),
                 gzip_records[0].features.len()

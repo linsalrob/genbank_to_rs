@@ -279,7 +279,12 @@ fn test_read_non_seekable_input() {
         }
         let output = child.wait_with_output().unwrap();
 
-        assert!(output.status.success(), "Command failed for {:?}: {:?}", input, output);
+        assert!(
+            output.status.success(),
+            "Command failed for {:?}: {:?}",
+            input,
+            output
+        );
         let content = fs::read_to_string(&output_path).unwrap();
         assert!(content.starts_with(">NC_001417"));
     }

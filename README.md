@@ -31,6 +31,10 @@ Convert GenBank files to:
 - **Phage Finder**: Phage finder tool format (--phage_finder)
 - **Bakta JSON**: Bakta-compatible JSON output (--bakta-json)
 
+**Additional Features**:
+- **Automatic gzip detection**: Transparently reads gzip-compressed GenBank files (`.gbk.gz`) by detecting the gzip magic number
+- **Gzip output compression**: Compress output files with the `--zip` flag
+
 ## Installation
 
 ### From source
@@ -95,7 +99,14 @@ genbank_to -g multi.gbk -a proteins --separate
 # Creates: proteins.NC_001417.faa, proteins.NC_001234.faa, etc.
 ```
 
-**Gzip compression**:
+**Read gzip-compressed GenBank files** (automatic detection):
+```bash
+# Works transparently with gzip-compressed files
+genbank_to -g input.gbk.gz -n output.fna
+genbank_to -g input.gbk.gz -a output.faa
+```
+
+**Gzip output compression**:
 ```bash
 genbank_to -g input.gbk -f functions.tsv --zip
 ```

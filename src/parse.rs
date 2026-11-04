@@ -5,27 +5,65 @@
 
 use crate::model::*;
 use anyhow::{Context, Result};
+use flate2::read::MultiGzDecoder;
 use gb_io::reader::SeqReader;
 use gb_io::seq::{Feature as GbFeature, Seq};
 use std::fs::File;
+use std::io::{BufReader, Cursor, Read};
 use std::path::Path;
 
 /// Parse GenBank file into records
+/// Automatically detects and decompresses gzip files based on magic number
 pub fn parse_genbank_file(path: &Path) -> Result<Vec<Record>> {
-    let file =
+    let mut file =
         File::open(path).with_context(|| format!("Failed to open GenBank file: {:?}", path))?;
 
-    let reader = SeqReader::new(file);
+    // Check for gzip magic number (0x1f, 0x8b). The header bytes are replayed
+    // in front of the rest of the stream rather than seeking back, so that
+    // non-seekable inputs (named pipes, process substitution) still work.
+    let mut magic = Vec::with_capacity(2);
+    (&mut file)
+        .take(2)
+        .read_to_end(&mut magic)
+        .with_context(|| format!("Failed to read file header: {:?}", path))?;
+    if magic.len() < 2 {
+        anyhow::bail!(
+            "File {:?} is too small to be a valid GenBank file (less than 2 bytes)",
+            path
+        );
+    }
+    let is_gzip = magic == [0x1f, 0x8b];
+    let input = BufReader::new(Cursor::new(magic).chain(file));
+
     let mut records = Vec::new();
 
+    if is_gzip {
+        // File is gzip compressed. MultiGzDecoder reads every member, so
+        // concatenated gzip files (e.g. `cat a.gbk.gz b.gbk.gz`) are fully parsed.
+        tracing::info!("Detected gzip compressed file: {:?}", path);
+        let decoder = MultiGzDecoder::new(input);
+        parse_records_from_reader(SeqReader::new(decoder), &mut records)?;
+    } else {
+        // Regular uncompressed file
+        tracing::info!("Reading uncompressed file: {:?}", path);
+        parse_records_from_reader(SeqReader::new(input), &mut records)?;
+    }
+
+    tracing::info!("Parsed {} record(s) from {:?}", records.len(), path);
+    Ok(records)
+}
+
+/// Helper function to parse records from any reader
+fn parse_records_from_reader<R: Read>(
+    reader: SeqReader<R>,
+    records: &mut Vec<Record>,
+) -> Result<()> {
     for seq_result in reader {
         let seq = seq_result.context("Failed to parse GenBank record")?;
         let record = convert_seq_to_record(seq)?;
         records.push(record);
     }
-
-    tracing::info!("Parsed {} record(s) from {:?}", records.len(), path);
-    Ok(records)
+    Ok(())
 }
 
 /// Convert gb-io Seq to our Record model
@@ -224,5 +262,44 @@ mod tests {
         let parsed = parse_qualifiers(&quals);
         assert_eq!(parsed.protein_id, Some("YP_001234".to_string()));
         assert_eq!(parsed.locus_tag, Some("ABC_001".to_string()));
+    }
+
+    #[test]
+    fn test_parse_uncompressed_genbank() {
+        let path = Path::new("tests/data/input/NC_001417.gbk");
+        if path.exists() {
+            let records = parse_genbank_file(path).unwrap();
+            assert!(!records.is_empty());
+            assert_eq!(records[0].id, "NC_001417");
+        }
+    }
+
+    #[test]
+    fn test_parse_gzip_genbank() {
+        let path = Path::new("tests/data/input/NC_001417.gbk.gz");
+        if path.exists() {
+            let records = parse_genbank_file(path).unwrap();
+            assert!(!records.is_empty());
+            assert_eq!(records[0].id, "NC_001417");
+        }
+    }
+
+    #[test]
+    fn test_gzip_and_uncompressed_produce_same_result() {
+        let uncompressed_path = Path::new("tests/data/input/NC_001417.gbk");
+        let gzip_path = Path::new("tests/data/input/NC_001417.gbk.gz");
+
+        if uncompressed_path.exists() && gzip_path.exists() {
+            let uncompressed_records = parse_genbank_file(uncompressed_path).unwrap();
+            let gzip_records = parse_genbank_file(gzip_path).unwrap();
+
+            assert_eq!(uncompressed_records.len(), gzip_records.len());
+            assert_eq!(uncompressed_records[0].id, gzip_records[0].id);
+            assert_eq!(uncompressed_records[0].sequence, gzip_records[0].sequence);
+            assert_eq!(
+                uncompressed_records[0].features.len(),
+                gzip_records[0].features.len()
+            );
+        }
     }
 }
